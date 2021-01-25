@@ -120,7 +120,7 @@ static void obs_x264_defaults(obs_data_t *settings)
 	/* 2020-01-19:  the difference between UTC and TAI is 37 seconds */
 	obs_data_set_default_int(settings, "utc_to_tai", 37);
 	obs_data_set_default_bool(settings, "send_misp_precision_timestamps",
-				  false);
+				  true);
 	obs_data_set_default_string(settings, "x264opts", "");
 	obs_data_set_default_bool(settings, "repeat_headers", false);
 }
@@ -237,12 +237,14 @@ static obs_properties_t *obs_x264_props(void *unused)
 	obs_properties_add_bool(props, "vfr", TEXT_VFR);
 #endif
 
+#if 0
 	p = obs_properties_add_int(props, "utc_to_tai", TEXT_UTC_TO_TAI, 0, 100,
 				   1);
 	obs_property_int_set_suffix(p, TEXT_SECONDS);
 
 	obs_properties_add_bool(props, "send_misp_precision_timestamps",
 				TEXT_SEND_MISP_PRECISION_TIMESTAMPS);
+#endif
 
 	obs_properties_add_text(props, "x264opts", TEXT_X264_OPTS,
 				OBS_TEXT_DEFAULT);

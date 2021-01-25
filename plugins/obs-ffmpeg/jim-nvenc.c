@@ -2,6 +2,7 @@
 #include <util/circlebuf.h>
 #include <util/darray.h>
 #include <util/dstr.h>
+#include <util/misp-precision-timestamp.h>
 #include <obs-avc.h>
 #define INITGUID
 #include <dxgi.h>
@@ -71,6 +72,8 @@ struct nvenc_data {
 
 	uint8_t *sei;
 	size_t sei_size;
+
+	misp_precision_timestamp_t *misp_precision_timestamp;
 };
 
 /* ------------------------------------------------------------------------- */
@@ -626,6 +629,12 @@ static void *nvenc_create(obs_data_t *settings, obs_encoder_t *encoder)
 		goto fail;
 	}
 
+	enc->misp_precision_timestamp = misp_precision_timestamp_create();
+
+	/* TODO:  make variable! */
+	misp_precision_timestamp_set_utc_to_tai(enc->misp_precision_timestamp,
+						37000000000);
+
 	return enc;
 
 fail:
@@ -670,6 +679,8 @@ static void nvenc_destroy(void *data)
 	if (enc->device) {
 		enc->device->lpVtbl->Release(enc->device);
 	}
+
+	misp_precision_timestamp_destroy(enc->misp_precision_timestamp);
 
 	bfree(enc->header);
 	bfree(enc->sei);
@@ -875,7 +886,31 @@ static bool nvenc_encode_tex(void *data, uint32_t handle, int64_t pts,
 	params.outputBitstream = bs->ptr;
 	params.completionEvent = bs->event;
 
+	NV_ENC_SEI_PAYLOAD *sei = NULL;
+
+	uint8_t *payload = misp_precision_timestamp_get_sei_payload(
+		enc->misp_precision_timestamp,
+		obs_encoder_get_cur_timestamp(enc->encoder));
+
+	if (payload) {
+
+		sei = bzalloc(sizeof(NV_ENC_SEI_PAYLOAD));
+		sei->payloadSize = misp_precision_timestamp_sei_payload_size();
+		sei->payloadType = misp_precision_timestamp_sei_payload_type();
+		sei->payload = payload;
+
+		params.codecPicParams.h264PicParams.seiPayloadArrayCnt = 1;
+		params.codecPicParams.h264PicParams.seiPayloadArray = sei;
+	}
+
 	err = nv.nvEncEncodePicture(enc->session, &params);
+
+	if (payload)
+		bfree(payload);
+
+	if (sei)
+		bfree(sei);
+
 	if (err != NV_ENC_SUCCESS && err != NV_ENC_ERR_NEED_MORE_INPUT) {
 		nv_failed(enc->encoder, err, __FUNCTION__,
 			  "nvEncEncodePicture");
